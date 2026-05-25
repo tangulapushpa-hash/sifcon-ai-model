@@ -288,7 +288,7 @@ if st.sidebar.button("Predict Strength"):
     )
 
 # ============================================================
-# PERFORMANCE TABLE
+# MODEL PERFORMANCE TABLE
 # ============================================================
 
 st.subheader("Model Performance")
@@ -297,22 +297,30 @@ results = pd.DataFrame({
 
     'Model': [
         'Random Forest',
-        'XGBoost'
+        'XGBoost',
+        'RNN',
+        'LSTM'
     ],
 
     'MAE': [
         rf_mae,
-        xgb_mae
+        xgb_mae,
+        rnn_mae,
+        lstm_mae
     ],
 
     'RMSE': [
         rf_rmse,
-        xgb_rmse
+        xgb_rmse,
+        rnn_rmse,
+        lstm_rmse
     ],
 
     'R2 Score': [
         rf_r2,
-        xgb_r2
+        xgb_r2,
+        rnn_r2,
+        lstm_r2
     ]
 })
 
