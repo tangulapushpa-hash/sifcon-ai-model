@@ -20,7 +20,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-tensorflow-cpu==2.15.0
+import tensorflow as tf
 import random
 import os
 
