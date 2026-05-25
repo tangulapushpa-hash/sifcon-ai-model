@@ -1,26 +1,24 @@
 # ============================================================
-# SIFCON WEB APPLICATION - FINAL CLEAN VERSION
+# SIFCON STRENGTH PREDICTION WEB APPLICATION
+# FINAL STREAMLIT DEPLOYMENT VERSION
 # ============================================================
 # FEATURES:
-# ✔ Fixed TensorFlow/Keras errors
-# ✔ Same prediction values every run
-# ✔ Only BEST MODEL prediction displayed
+# ✔ No TensorFlow errors
+# ✔ Fast Streamlit deployment
+# ✔ Stable prediction values
+# ✔ Only best model prediction displayed
 # ✔ No plots
-# ✔ Faster execution
-# ✔ Performance table included
-# ✔ Stable Streamlit execution
+# ✔ XGBoost + Random Forest only
+# ✔ Streamlit cloud compatible
 # ============================================================
 
 # ============================================================
-# INSTALL REQUIRED LIBRARIES
-# ============================================================
-# pip install streamlit pandas numpy scikit-learn xgboost tensorflow
+# IMPORT LIBRARIES
 # ============================================================
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 import random
 import os
 
@@ -35,12 +33,8 @@ from sklearn.metrics import (
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, SimpleRNN, LSTM, Dropout
-from tensorflow.keras.optimizers import Adam
-
 # ============================================================
-# FIX RANDOMNESS & TENSORFLOW ISSUES
+# FIX RANDOMNESS
 # ============================================================
 
 SEED = 42
@@ -49,11 +43,7 @@ np.random.seed(SEED)
 
 random.seed(SEED)
 
-tf.random.set_seed(SEED)
-
 os.environ["PYTHONHASHSEED"] = str(SEED)
-
-tf.keras.backend.clear_session()
 
 # ============================================================
 # PAGE CONFIGURATION
@@ -74,8 +64,6 @@ st.title("SIFCON Strength Prediction Using AI Models")
 
 def train_models():
 
-    tf.keras.backend.clear_session()
-
     # ========================================================
     # LOAD DATASET
     # ========================================================
@@ -84,7 +72,10 @@ def train_models():
 
     df = pd.read_csv(dataset_path)
 
-    # Fix headers
+    # ========================================================
+    # FIX HEADERS
+    # ========================================================
+
     df.columns = df.iloc[0]
 
     df = df[1:].reset_index(drop=True)
@@ -96,6 +87,7 @@ def train_models():
     numeric_cols = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'y']
 
     for col in numeric_cols:
+
         df[col] = pd.to_numeric(df[col])
 
     # ========================================================
@@ -200,121 +192,17 @@ def train_models():
     xgb_pred = xgb_model.predict(X_test)
 
     # ========================================================
-    # RESHAPE DATA FOR RNN/LSTM
-    # ========================================================
-
-    X_train_rnn = X_train.reshape(
-        (X_train.shape[0], 1, X_train.shape[1])
-    )
-
-    X_test_rnn = X_test.reshape(
-        (X_test.shape[0], 1, X_test.shape[1])
-    )
-
-    # ========================================================
-    # RNN MODEL
-    # ========================================================
-
-    tf.keras.backend.clear_session()
-
-    rnn_model = Sequential()
-
-    rnn_model.add(
-        SimpleRNN(
-            64,
-            activation='relu',
-            input_shape=(1, X_train.shape[1])
-        )
-    )
-
-    rnn_model.add(Dropout(0.2))
-
-    rnn_model.add(Dense(32, activation='relu'))
-
-    rnn_model.add(Dense(1))
-
-    rnn_model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='mse'
-    )
-
-    rnn_model.fit(
-        X_train_rnn,
-        y_train,
-        epochs=100,
-        batch_size=16,
-        validation_split=0.2,
-        shuffle=False,
-        verbose=0
-    )
-
-    rnn_pred = np.array(
-        rnn_model.predict(
-            X_test_rnn,
-            verbose=0
-        )
-    ).flatten()
-
-    # ========================================================
-    # LSTM MODEL
-    # ========================================================
-
-    tf.keras.backend.clear_session()
-
-    lstm_model = Sequential()
-
-    lstm_model.add(
-        LSTM(
-            64,
-            activation='relu',
-            input_shape=(1, X_train.shape[1])
-        )
-    )
-
-    lstm_model.add(Dropout(0.2))
-
-    lstm_model.add(Dense(32, activation='relu'))
-
-    lstm_model.add(Dense(1))
-
-    lstm_model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='mse'
-    )
-
-    lstm_model.fit(
-        X_train_rnn,
-        y_train,
-        epochs=100,
-        batch_size=16,
-        validation_split=0.2,
-        shuffle=False,
-        verbose=0
-    )
-
-    lstm_pred = np.array(
-        lstm_model.predict(
-            X_test_rnn,
-            verbose=0
-        )
-    ).flatten()
-
-    # ========================================================
-    # RETURN EVERYTHING
+    # RETURN
     # ========================================================
 
     return (
         rf_model,
         xgb_model,
-        rnn_model,
-        lstm_model,
         scaler,
         encoder,
         y_test,
         rf_pred,
-        xgb_pred,
-        rnn_pred,
-        lstm_pred
+        xgb_pred
     )
 
 # ============================================================
@@ -324,15 +212,11 @@ def train_models():
 (
     rf_model,
     xgb_model,
-    rnn_model,
-    lstm_model,
     scaler,
     encoder,
     y_test,
     rf_pred,
-    xgb_pred,
-    rnn_pred,
-    lstm_pred
+    xgb_pred
 ) = train_models()
 
 # ============================================================
@@ -340,20 +224,16 @@ def train_models():
 # ============================================================
 
 rf_mae = mean_absolute_error(y_test, rf_pred)
+
 rf_rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
+
 rf_r2 = r2_score(y_test, rf_pred)
 
 xgb_mae = mean_absolute_error(y_test, xgb_pred)
+
 xgb_rmse = np.sqrt(mean_squared_error(y_test, xgb_pred))
+
 xgb_r2 = r2_score(y_test, xgb_pred)
-
-rnn_mae = mean_absolute_error(y_test, rnn_pred)
-rnn_rmse = np.sqrt(mean_squared_error(y_test, rnn_pred))
-rnn_r2 = r2_score(y_test, rnn_pred)
-
-lstm_mae = mean_absolute_error(y_test, lstm_pred)
-lstm_rmse = np.sqrt(mean_squared_error(y_test, lstm_pred))
-lstm_r2 = r2_score(y_test, lstm_pred)
 
 # ============================================================
 # SIDEBAR INPUTS
@@ -397,15 +277,21 @@ test_type = st.sidebar.selectbox(
 )
 
 # ============================================================
-# PREDICT BUTTON
+# PREDICTION BUTTON
 # ============================================================
 
 if st.sidebar.button("Predict Strength"):
 
-    # Encode test type
+    # ========================================================
+    # ENCODE TEST TYPE
+    # ========================================================
+
     x7 = encoder.transform([test_type])[0]
 
-    # Create input sample
+    # ========================================================
+    # CREATE INPUT SAMPLE
+    # ========================================================
+
     sample = [[
         x1,
         x2,
@@ -416,13 +302,11 @@ if st.sidebar.button("Predict Strength"):
         x7
     ]]
 
-    # Scale input
-    sample_scaled = scaler.transform(sample)
+    # ========================================================
+    # SCALE INPUT
+    # ========================================================
 
-    # Reshape for RNN/LSTM
-    sample_rnn = sample_scaled.reshape(
-        (1, 1, sample_scaled.shape[1])
-    )
+    sample_scaled = scaler.transform(sample)
 
     # ========================================================
     # MODEL PREDICTIONS
@@ -436,45 +320,29 @@ if st.sidebar.button("Predict Strength"):
         sample_scaled
     )[0]
 
-    rnn_strength = np.array(
-        rnn_model.predict(
-            sample_rnn,
-            verbose=0
-        )
-    ).flatten()[0]
-
-    lstm_strength = np.array(
-        lstm_model.predict(
-            sample_rnn,
-            verbose=0
-        )
-    ).flatten()[0]
-
     # ========================================================
-    # SELECT BEST MODEL
+    # BEST MODEL SELECTION
     # ========================================================
 
     scores = {
         "Random Forest": rf_r2,
-        "XGBoost": xgb_r2,
-        "RNN": rnn_r2,
-        "LSTM": lstm_r2
+        "XGBoost": xgb_r2
     }
 
     predictions = {
         "Random Forest": rf_strength,
-        "XGBoost": xgb_strength,
-        "RNN": rnn_strength,
-        "LSTM": lstm_strength
+        "XGBoost": xgb_strength
     }
 
-    # Best model based on highest R² score
-    best_model = max(scores, key=scores.get)
+    best_model = max(
+        scores,
+        key=scores.get
+    )
 
     best_strength = predictions[best_model]
 
     # ========================================================
-    # DISPLAY BEST MODEL RESULT ONLY
+    # DISPLAY RESULT
     # ========================================================
 
     st.subheader("Predicted Strength Value")
@@ -494,30 +362,22 @@ results = pd.DataFrame({
 
     'Model': [
         'Random Forest',
-        'XGBoost',
-        'RNN',
-        'LSTM'
+        'XGBoost'
     ],
 
     'MAE': [
         rf_mae,
-        xgb_mae,
-        rnn_mae,
-        lstm_mae
+        xgb_mae
     ],
 
     'RMSE': [
         rf_rmse,
-        xgb_rmse,
-        rnn_rmse,
-        lstm_rmse
+        xgb_rmse
     ],
 
     'R2 Score': [
         rf_r2,
-        xgb_r2,
-        rnn_r2,
-        lstm_r2
+        xgb_r2
     ]
 })
 
