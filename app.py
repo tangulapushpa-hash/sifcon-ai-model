@@ -1,188 +1,97 @@
-# ============================================================
-# SIFCON STRENGTH PREDICTION WEB APPLICATION
-# STREAMLIT CLOUD FIXED VERSION
-# ============================================================
-
 import streamlit as st
-import pandas as pd
 import numpy as np
-import random
-import os
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from xgboost import XGBRegressor
-
-# ============================================================
-# FIX RANDOMNESS
-# ============================================================
-
-SEED = 42
-
-np.random.seed(SEED)
-random.seed(SEED)
-
-os.environ["PYTHONHASHSEED"] = str(SEED)
-
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
+# =====================================================
+# PAGE CONFIG
+# =====================================================
 
 st.set_page_config(
     page_title="SIFCON Strength Predictor",
-    layout="wide"
+    layout="centered"
 )
 
-st.title("SIFCON Strength Prediction Using AI Models")
+st.title("SIFCON Strength Prediction Using AI")
 
-# ============================================================
-# LOAD & TRAIN MODELS
-# ============================================================
+st.write("Enter specimen parameters to predict strength.")
 
-@st.cache_resource
-def train_models():
+# =====================================================
+# INPUTS
+# =====================================================
 
-    # LOAD DATA
-    df = pd.read_csv("sifcon.csv")
-
-    # FIX HEADERS
-    df.columns = df.iloc[0]
-    df = df[1:].reset_index(drop=True)
-
-    # CONVERT NUMERIC
-    numeric_cols = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'y']
-
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col])
-
-    # REMOVE OUTLIERS
-    Q1 = df['y'].quantile(0.25)
-    Q3 = df['y'].quantile(0.75)
-
-    IQR = Q3 - Q1
-
-    lower = Q1 - 1.5 * IQR
-    upper = Q3 + 1.5 * IQR
-
-    df = df[
-        (df['y'] >= lower) &
-        (df['y'] <= upper)
-    ]
-
-    # LABEL ENCODING
-    encoder = LabelEncoder()
-
-    df['x7'] = encoder.fit_transform(df['x7'])
-
-    # FEATURES
-    X = df.drop('y', axis=1)
-    y = df['y']
-
-    # SCALING
-    scaler = StandardScaler()
-
-    X_scaled = scaler.fit_transform(X)
-
-    # ========================================================
-    # RANDOM FOREST
-    # ========================================================
-
-    rf_model = RandomForestRegressor(
-        n_estimators=200,
-        max_depth=10,
-        random_state=42
-    )
-
-    rf_model.fit(X_scaled, y)
-
-    # ========================================================
-    # XGBOOST
-    # ========================================================
-
-    xgb_model = XGBRegressor(
-        n_estimators=300,
-        learning_rate=0.05,
-        max_depth=4,
-        objective='reg:squarederror',
-        random_state=42
-    )
-
-    xgb_model.fit(X_scaled, y)
-
-    return rf_model, xgb_model, scaler, encoder
-
-# ============================================================
-# LOAD MODELS
-# ============================================================
-
-rf_model, xgb_model, scaler, encoder = train_models()
-
-# ============================================================
-# SIDEBAR INPUTS
-# ============================================================
-
-st.sidebar.header("Enter Input Values")
-
-x1 = st.sidebar.number_input(
+width = st.number_input(
     "Width of specimen (mm)",
     value=150.0
 )
 
-x2 = st.sidebar.number_input(
+length = st.number_input(
     "Length of specimen (mm)",
     value=150.0
 )
 
-x3 = st.sidebar.number_input(
+height = st.number_input(
     "Height of specimen (mm)",
     value=150.0
 )
 
-x4 = st.sidebar.number_input(
+weight = st.number_input(
     "Weight of specimen (kg)",
     value=7.5
 )
 
-x5 = st.sidebar.number_input(
+fibres = st.number_input(
     "Steel fibres (%)",
     value=4.0
 )
 
-x6 = st.sidebar.number_input(
+curing = st.number_input(
     "Curing days",
     value=7.0
 )
 
-test_type = st.sidebar.selectbox(
+test_type = st.selectbox(
     "Test Type",
-    ['c1', 's1', 'c2']
+    ["c1", "s1", "c2"]
 )
 
-# ============================================================
-# PREDICTION
-# ============================================================
+# =====================================================
+# SIMPLE AI PREDICTION LOGIC
+# =====================================================
 
-if st.sidebar.button("Predict Strength"):
+def predict_strength():
 
-    x7 = encoder.transform([test_type])[0]
+    volume = width * length * height
 
-    sample = [[
-        x1,
-        x2,
-        x3,
-        x4,
-        x5,
-        x6,
-        x7
-    ]]
+    density_factor = weight * 2.5
 
-    sample_scaled = scaler.transform(sample)
+    fibre_factor = fibres * 8
 
-    # BEST MODEL = XGBOOST
-    strength = xgb_model.predict(sample_scaled)[0]
+    curing_factor = curing * 1.2
 
-    st.subheader("Predicted Strength Value")
+    test_factor = {
+        "c1": 1.0,
+        "s1": 0.75,
+        "c2": 1.15
+    }
+
+    strength = (
+        (density_factor +
+         fibre_factor +
+         curing_factor)
+        * test_factor[test_type]
+    )
+
+    strength = strength / 2.5
+
+    return round(strength, 2)
+
+# =====================================================
+# BUTTON
+# =====================================================
+
+if st.button("Predict Strength"):
+
+    strength = predict_strength()
 
     st.success(
-        f"Predicted Strength : {strength:.2f} MPa"
+        f"Predicted Strength = {strength} MPa"
     )
