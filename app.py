@@ -1,6 +1,6 @@
 # ============================================================
 # SIFCON STRENGTH PREDICTION WEB APPLICATION
-# FINAL FIXED VERSION
+# FINAL FULLY FIXED VERSION
 # ============================================================
 
 import streamlit as st
@@ -39,7 +39,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import (
     Dense,
     SimpleRNN,
-    LSTM
+    LSTM,
+    Dropout
 )
 
 from tensorflow.keras.optimizers import Adam
@@ -115,8 +116,8 @@ def train_models():
 
     IQR = Q3 - Q1
 
-    lower = Q1 - (1.5 * IQR)
-    upper = Q3 + (1.5 * IQR)
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
 
     df = df[
         (df['y'] >= lower) &
@@ -140,7 +141,7 @@ def train_models():
     y = df['y']
 
     # ========================================================
-    # SCALING
+    # FEATURE SCALING
     # ========================================================
 
     scaler = StandardScaler()
@@ -154,8 +155,8 @@ def train_models():
     X_train, X_test, y_train, y_test = train_test_split(
         X_scaled,
         y,
-        test_size=0.2,
-        random_state=SEED
+        test_size=0.15,
+        random_state=42
     )
 
     # ========================================================
@@ -163,9 +164,9 @@ def train_models():
     # ========================================================
 
     rf_model = RandomForestRegressor(
-        n_estimators=200,
-        max_depth=10,
-        random_state=SEED
+        n_estimators=300,
+        max_depth=12,
+        random_state=42
     )
 
     rf_model.fit(X_train, y_train)
@@ -181,15 +182,32 @@ def train_models():
     rf_r2 = r2_score(y_test, rf_pred)
 
     # ========================================================
-    # XGBOOST MODEL
+    # IMPROVED XGBOOST MODEL
     # ========================================================
 
     xgb_model = XGBRegressor(
-        n_estimators=300,
-        learning_rate=0.05,
+
+        n_estimators=500,
+
+        learning_rate=0.03,
+
         max_depth=4,
+
+        min_child_weight=3,
+
+        gamma=0.2,
+
+        reg_alpha=0.5,
+
+        reg_lambda=2,
+
+        subsample=0.8,
+
+        colsample_bytree=0.8,
+
         objective='reg:squarederror',
-        random_state=SEED
+
+        random_state=42
     )
 
     xgb_model.fit(X_train, y_train)
@@ -205,20 +223,20 @@ def train_models():
     xgb_r2 = r2_score(y_test, xgb_pred)
 
     # ========================================================
-    # RNN MODEL
+    # PREPARE DATA FOR RNN & LSTM
     # ========================================================
 
     X_train_rnn = X_train.reshape(
-        X_train.shape[0],
-        X_train.shape[1],
-        1
+        (X_train.shape[0], 1, X_train.shape[1])
     )
 
     X_test_rnn = X_test.reshape(
-        X_test.shape[0],
-        X_test.shape[1],
-        1
+        (X_test.shape[0], 1, X_test.shape[1])
     )
+
+    # ========================================================
+    # RNN MODEL
+    # ========================================================
 
     rnn_model = Sequential()
 
@@ -226,12 +244,11 @@ def train_models():
         SimpleRNN(
             64,
             activation='relu',
-            input_shape=(
-                X_train_rnn.shape[1],
-                1
-            )
+            input_shape=(1, X_train.shape[1])
         )
     )
+
+    rnn_model.add(Dropout(0.2))
 
     rnn_model.add(Dense(32, activation='relu'))
 
@@ -246,7 +263,8 @@ def train_models():
         X_train_rnn,
         y_train,
         epochs=100,
-        batch_size=8,
+        batch_size=16,
+        validation_split=0.2,
         verbose=0
     )
 
@@ -273,12 +291,11 @@ def train_models():
         LSTM(
             64,
             activation='relu',
-            input_shape=(
-                X_train_rnn.shape[1],
-                1
-            )
+            input_shape=(1, X_train.shape[1])
         )
     )
+
+    lstm_model.add(Dropout(0.2))
 
     lstm_model.add(Dense(32, activation='relu'))
 
@@ -293,7 +310,8 @@ def train_models():
         X_train_rnn,
         y_train,
         epochs=100,
-        batch_size=8,
+        batch_size=16,
+        validation_split=0.2,
         verbose=0
     )
 
@@ -311,7 +329,7 @@ def train_models():
     lstm_r2 = r2_score(y_test, lstm_pred)
 
     # ========================================================
-    # RETURN ALL
+    # RETURN EVERYTHING
     # ========================================================
 
     return (
@@ -340,7 +358,7 @@ def train_models():
     )
 
 # ============================================================
-# LOAD EVERYTHING
+# LOAD ALL MODELS
 # ============================================================
 
 (
@@ -435,9 +453,7 @@ if st.sidebar.button("Predict Strength"):
     sample_scaled = scaler.transform(sample)
 
     sample_rnn = sample_scaled.reshape(
-        sample_scaled.shape[0],
-        sample_scaled.shape[1],
-        1
+        (1, 1, sample_scaled.shape[1])
     )
 
     # ========================================================
@@ -451,62 +467,33 @@ if st.sidebar.button("Predict Strength"):
     rnn_strength = rnn_model.predict(
         sample_rnn,
         verbose=0
-    )[0][0]
+    ).flatten()[0]
 
     lstm_strength = lstm_model.predict(
         sample_rnn,
         verbose=0
-    )[0][0]
+    ).flatten()[0]
 
     # ========================================================
-    # BEST MODEL
+    # DISPLAY RESULTS
     # ========================================================
 
-    model_scores = {
-
-        "Random Forest": rf_r2,
-
-        "XGBoost": xgb_r2,
-
-        "RNN": rnn_r2,
-
-        "LSTM": lstm_r2
-    }
-
-    best_model = max(
-        model_scores,
-        key=model_scores.get
-    )
-
-    prediction_values = {
-
-        "Random Forest": rf_strength,
-
-        "XGBoost": xgb_strength,
-
-        "RNN": rnn_strength,
-
-        "LSTM": lstm_strength
-    }
-
-    best_prediction = prediction_values[best_model]
-
-    # ========================================================
-    # DISPLAY BEST MODEL RESULT
-    # ========================================================
-
-    st.subheader("Predicted Strength Value")
+    st.subheader("Predicted Strength Values")
 
     st.success(
-        f"Best Model : {best_model}"
+        f"Random Forest Prediction : {rf_strength:.2f} MPa"
     )
 
     st.success(
-        f"Predicted Strength : {best_prediction:.2f} MPa"
+        f"XGBoost Prediction : {xgb_strength:.2f} MPa"
     )
 
-    st.info(
-        f"Model R² Score : {model_scores[best_model]:.4f}"
+    st.success(
+        f"RNN Prediction : {rnn_strength:.2f} MPa"
+    )
+
+    st.success(
+        f"LSTM Prediction : {lstm_strength:.2f} MPa"
     )
 
     st.markdown("---")
@@ -515,7 +502,7 @@ if st.sidebar.button("Predict Strength"):
     # MODEL PERFORMANCE TABLE
     # ========================================================
 
-    st.subheader("Model Performance")
+    st.subheader("Model Performance Comparison")
 
     results = pd.DataFrame({
 
@@ -554,4 +541,24 @@ if st.sidebar.button("Predict Strength"):
             color='lightgreen'
         ),
         use_container_width=True
+    )
+
+    # ========================================================
+    # BEST MODEL
+    # ========================================================
+
+    best_model = results.loc[
+        results['R2 Score'].idxmax()
+    ]
+
+    st.markdown("---")
+
+    st.subheader("Best Performing Model")
+
+    st.info(
+        f"Best Model : {best_model['Model']}"
+    )
+
+    st.info(
+        f"Best R² Score : {best_model['R2 Score']:.4f}"
     )
