@@ -1,6 +1,6 @@
 streamlit
 pandas
-numpy==1.26.4
+numpy
 scikit-learn
 xgboost
-tensorflow==2.15.0
+tensorflow
