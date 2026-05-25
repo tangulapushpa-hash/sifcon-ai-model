@@ -1,19 +1,6 @@
 # ============================================================
 # SIFCON STRENGTH PREDICTION WEB APPLICATION
-# FINAL STREAMLIT DEPLOYMENT VERSION
-# ============================================================
-# FEATURES:
-# ✔ No TensorFlow errors
-# ✔ Fast Streamlit deployment
-# ✔ Stable prediction values
-# ✔ Only best model prediction displayed
-# ✔ No plots
-# ✔ XGBoost + Random Forest only
-# ✔ Streamlit cloud compatible
-# ============================================================
-
-# ============================================================
-# IMPORT LIBRARIES
+# STREAMLIT CLOUD FIXED VERSION
 # ============================================================
 
 import streamlit as st
@@ -22,15 +9,8 @@ import numpy as np
 import random
 import os
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
-
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from xgboost import XGBRegressor
 
 # ============================================================
@@ -40,7 +20,6 @@ from xgboost import XGBRegressor
 SEED = 42
 
 np.random.seed(SEED)
-
 random.seed(SEED)
 
 os.environ["PYTHONHASHSEED"] = str(SEED)
@@ -57,51 +36,32 @@ st.set_page_config(
 st.title("SIFCON Strength Prediction Using AI Models")
 
 # ============================================================
-# TRAIN MODELS ONLY ONCE
+# LOAD & TRAIN MODELS
 # ============================================================
 
 @st.cache_resource
-
 def train_models():
 
-    # ========================================================
-    # LOAD DATASET
-    # ========================================================
+    # LOAD DATA
+    df = pd.read_csv("sifcon.csv")
 
-    dataset_path = "sifcon.csv"
-
-    df = pd.read_csv(dataset_path)
-
-    # ========================================================
     # FIX HEADERS
-    # ========================================================
-
     df.columns = df.iloc[0]
-
     df = df[1:].reset_index(drop=True)
 
-    # ========================================================
-    # CONVERT DATA TYPES
-    # ========================================================
-
+    # CONVERT NUMERIC
     numeric_cols = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'y']
 
     for col in numeric_cols:
-
         df[col] = pd.to_numeric(df[col])
 
-    # ========================================================
-    # REMOVE OUTLIERS USING IQR
-    # ========================================================
-
+    # REMOVE OUTLIERS
     Q1 = df['y'].quantile(0.25)
-
     Q3 = df['y'].quantile(0.75)
 
     IQR = Q3 - Q1
 
     lower = Q1 - 1.5 * IQR
-
     upper = Q3 + 1.5 * IQR
 
     df = df[
@@ -109,131 +69,53 @@ def train_models():
         (df['y'] <= upper)
     ]
 
-    # ========================================================
     # LABEL ENCODING
-    # ========================================================
-
     encoder = LabelEncoder()
 
     df['x7'] = encoder.fit_transform(df['x7'])
 
-    # ========================================================
-    # FEATURES & TARGET
-    # ========================================================
-
+    # FEATURES
     X = df.drop('y', axis=1)
-
     y = df['y']
 
-    # ========================================================
-    # FEATURE SCALING
-    # ========================================================
-
+    # SCALING
     scaler = StandardScaler()
 
     X_scaled = scaler.fit_transform(X)
 
     # ========================================================
-    # TRAIN TEST SPLIT
-    # ========================================================
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled,
-        y,
-        test_size=0.15,
-        random_state=42
-    )
-
-    # ========================================================
-    # RANDOM FOREST MODEL
+    # RANDOM FOREST
     # ========================================================
 
     rf_model = RandomForestRegressor(
-        n_estimators=300,
-        max_depth=12,
+        n_estimators=200,
+        max_depth=10,
         random_state=42
     )
 
-    rf_model.fit(X_train, y_train)
-
-    rf_pred = rf_model.predict(X_test)
+    rf_model.fit(X_scaled, y)
 
     # ========================================================
-    # XGBOOST MODEL
+    # XGBOOST
     # ========================================================
 
     xgb_model = XGBRegressor(
-
-        n_estimators=500,
-
-        learning_rate=0.03,
-
+        n_estimators=300,
+        learning_rate=0.05,
         max_depth=4,
-
-        min_child_weight=3,
-
-        gamma=0.2,
-
-        reg_alpha=0.5,
-
-        reg_lambda=2,
-
-        subsample=0.8,
-
-        colsample_bytree=0.8,
-
         objective='reg:squarederror',
-
         random_state=42
     )
 
-    xgb_model.fit(X_train, y_train)
+    xgb_model.fit(X_scaled, y)
 
-    xgb_pred = xgb_model.predict(X_test)
-
-    # ========================================================
-    # RETURN
-    # ========================================================
-
-    return (
-        rf_model,
-        xgb_model,
-        scaler,
-        encoder,
-        y_test,
-        rf_pred,
-        xgb_pred
-    )
+    return rf_model, xgb_model, scaler, encoder
 
 # ============================================================
-# LOAD TRAINED MODELS
+# LOAD MODELS
 # ============================================================
 
-(
-    rf_model,
-    xgb_model,
-    scaler,
-    encoder,
-    y_test,
-    rf_pred,
-    xgb_pred
-) = train_models()
-
-# ============================================================
-# CALCULATE PERFORMANCE METRICS
-# ============================================================
-
-rf_mae = mean_absolute_error(y_test, rf_pred)
-
-rf_rmse = np.sqrt(mean_squared_error(y_test, rf_pred))
-
-rf_r2 = r2_score(y_test, rf_pred)
-
-xgb_mae = mean_absolute_error(y_test, xgb_pred)
-
-xgb_rmse = np.sqrt(mean_squared_error(y_test, xgb_pred))
-
-xgb_r2 = r2_score(y_test, xgb_pred)
+rf_model, xgb_model, scaler, encoder = train_models()
 
 # ============================================================
 # SIDEBAR INPUTS
@@ -277,20 +159,12 @@ test_type = st.sidebar.selectbox(
 )
 
 # ============================================================
-# PREDICTION BUTTON
+# PREDICTION
 # ============================================================
 
 if st.sidebar.button("Predict Strength"):
 
-    # ========================================================
-    # ENCODE TEST TYPE
-    # ========================================================
-
     x7 = encoder.transform([test_type])[0]
-
-    # ========================================================
-    # CREATE INPUT SAMPLE
-    # ========================================================
 
     sample = [[
         x1,
@@ -302,92 +176,13 @@ if st.sidebar.button("Predict Strength"):
         x7
     ]]
 
-    # ========================================================
-    # SCALE INPUT
-    # ========================================================
-
     sample_scaled = scaler.transform(sample)
 
-    # ========================================================
-    # MODEL PREDICTIONS
-    # ========================================================
-
-    rf_strength = rf_model.predict(
-        sample_scaled
-    )[0]
-
-    xgb_strength = xgb_model.predict(
-        sample_scaled
-    )[0]
-
-    # ========================================================
-    # BEST MODEL SELECTION
-    # ========================================================
-
-    scores = {
-        "Random Forest": rf_r2,
-        "XGBoost": xgb_r2
-    }
-
-    predictions = {
-        "Random Forest": rf_strength,
-        "XGBoost": xgb_strength
-    }
-
-    best_model = max(
-        scores,
-        key=scores.get
-    )
-
-    best_strength = predictions[best_model]
-
-    # ========================================================
-    # DISPLAY RESULT
-    # ========================================================
+    # BEST MODEL = XGBOOST
+    strength = xgb_model.predict(sample_scaled)[0]
 
     st.subheader("Predicted Strength Value")
 
     st.success(
-        f"{best_model} Predicted Strength : "
-        f"{best_strength:.2f} MPa"
+        f"Predicted Strength : {strength:.2f} MPa"
     )
-
-# ============================================================
-# MODEL PERFORMANCE TABLE
-# ============================================================
-
-st.subheader("Model Performance")
-
-results = pd.DataFrame({
-
-    'Model': [
-        'Random Forest',
-        'XGBoost'
-    ],
-
-    'MAE': [
-        rf_mae,
-        xgb_mae
-    ],
-
-    'RMSE': [
-        rf_rmse,
-        xgb_rmse
-    ],
-
-    'R2 Score': [
-        rf_r2,
-        xgb_r2
-    ]
-})
-
-results = results.round(6)
-
-st.dataframe(
-    results,
-    use_container_width=True
-)
-
-# ============================================================
-# END OF CODE
-# ============================================================
